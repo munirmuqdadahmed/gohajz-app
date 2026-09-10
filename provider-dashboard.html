@@ -1,1 +1,214 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة تحكم الصالون - GoHajz</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <style>
+        :root { --gold: #C69C32; --gold-light: #E5C158; --green-deep: #123524; --green-darker: #0a1f16; }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Tajawal', sans-serif; direction: rtl;
+            background: var(--green-darker); color: #fff; margin: 0; padding: 16px;
+        }
+        .header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding-bottom: 14px; border-bottom: 1px solid #24392c; margin-bottom: 16px;
+        }
+        .header h2 { color: var(--gold-light); margin: 0; font-size: 1.15rem; }
+        .logout-btn {
+            background: #142a1f; color: #ef4444; border: 1px solid #ef4444;
+            padding: 7px 12px; border-radius: 8px; cursor: pointer; font-family: inherit;
+        }
+        .tabs { display: flex; gap: 6px; margin-bottom: 16px; max-width: 500px; margin-inline: auto; }
+        .tab-btn {
+            flex: 1; padding: 10px; background: #142a1f; border: 1px solid #24392c;
+            color: #ccc; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 0.85rem;
+        }
+        .tab-btn.active { background: var(--gold); color: #000; font-weight: 900; border-color: var(--gold); }
+        .tab-content { display: none; max-width: 500px; margin: 0 auto; }
+        .tab-content.active { display: block; }
+        .card { background: #142a1f; border: 1px solid #24392c; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+        input, textarea {
+            width: 100%; padding: 10px; background: #0a1f16; border: 1px solid #24392c;
+            border-radius: 8px; color: #fff; font-size: 0.9rem; font-family: inherit; margin-bottom: 8px;
+        }
+        button.primary {
+            width: 100%; padding: 11px; background: var(--gold); color: #000;
+            border: none; border-radius: 8px; font-weight: 900; cursor: pointer; font-family: inherit;
+        }
+        .service-row, .booking-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 0; border-bottom: 1px solid #1e3428;
+        }
+        .service-row:last-child, .booking-row:last-child { border-bottom: none; }
+        .booking-row .details { font-size: 0.82rem; }
+        .booking-row .details b { color: var(--gold-light); }
+        .status-badge { font-size: 0.68rem; padding: 3px 8px; border-radius: 10px; font-weight: bold; }
+        .status-pending { background: #3d2e0d; color: #fbbf24; }
+        .status-confirmed { background: #0d3d1a; color: #10b981; }
+        .status-cancelled { background: #3d0d0d; color: #ef4444; }
+        .mini-btn {
+            font-size: 0.7rem; padding: 4px 9px; border-radius: 6px; border: none;
+            cursor: pointer; font-family: inherit; margin-inline-start: 4px;
+        }
+        .empty-note { color: #777; font-size: 0.85rem; text-align: center; padding: 20px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2 id="providerNameHeader">جاري التحميل...</h2>
+        <button class="logout-btn" onclick="handleLogout()">
+            <i class="fa-solid fa-right-from-bracket"></i> خروج
+        </button>
+    </div>
 
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('services', this)">✂️ الخدمات</button>
+        <button class="tab-btn" onclick="switchTab('bookings', this)">📅 الحجوزات</button>
+    </div>
+
+    <!-- تبويب الخدمات -->
+    <div id="tab-services" class="tab-content active">
+        <div class="card">
+            <h4 style="color:var(--gold-light);margin-bottom:8px;">➕ إضافة خدمة</h4>
+            <input type="text" id="svcName" placeholder="اسم الخدمة (مثال: قص شعر)">
+            <input type="number" id="svcDuration" placeholder="المدة بالدقائق (مثال: 30)">
+            <input type="number" id="svcPrice" placeholder="السعر (د.ع)">
+            <button class="primary" onclick="addService()">إضافة</button>
+        </div>
+        <div class="card">
+            <h4 style="color:var(--gold-light);margin-bottom:8px;">خدماتك الحالية</h4>
+            <div id="servicesListBox"><p class="empty-note">جاري التحميل...</p></div>
+        </div>
+    </div>
+
+    <!-- تبويب الحجوزات -->
+    <div id="tab-bookings" class="tab-content">
+        <div class="card">
+            <h4 style="color:var(--gold-light);margin-bottom:8px;">📅 حجوزاتك</h4>
+            <div id="bookingsListBox"><p class="empty-note">جاري التحميل...</p></div>
+        </div>
+    </div>
+
+    <script src="gohajz-core.js"></script>
+    <script>
+        let providerId = null;
+
+        auth.onAuthStateChanged(async user => {
+            if (!user) { window.location.href = 'provider-login.html'; return; }
+            providerId = getCurrentProviderId();
+            if (!providerId) { window.location.href = 'provider-login.html'; return; }
+
+            const provider = await getProviderInfo(providerId);
+            if (!provider) { alert('⚠️ تعذّر إيجاد بيانات صالونك.'); return; }
+            document.getElementById('providerNameHeader').innerText =
+                (provider.category === 'رجالي' ? '💈 ' : '💇‍♀️ ') + provider.name;
+
+            loadServices();
+            loadBookings();
+        });
+
+        function switchTab(name, btn) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + name).classList.add('active');
+            btn.classList.add('active');
+        }
+
+        async function loadServices() {
+            const snap = await providerServicesCollection(providerId).get();
+            const services = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const box = document.getElementById('servicesListBox');
+
+            if (services.length === 0) {
+                box.innerHTML = '<p class="empty-note">ماكو خدمات مضافة بعد</p>';
+                return;
+            }
+            box.innerHTML = services.map(s => `
+                <div class="service-row">
+                    <div>
+                        <b>${s.name}</b>
+                        <div style="font-size:0.75rem;color:#999;">
+                            ⏱ ${s.durationMinutes} د — ${s.price.toLocaleString('ar-IQ')} د.ع
+                        </div>
+                    </div>
+                    <button class="mini-btn" style="background:#3d0d0d;color:#ef4444;"
+                            onclick="deleteService('${s.id}')">حذف</button>
+                </div>
+            `).join('');
+        }
+
+        async function addService() {
+            const name = document.getElementById('svcName').value.trim();
+            const duration = parseInt(document.getElementById('svcDuration').value);
+            const price = parseFloat(document.getElementById('svcPrice').value);
+
+            if (!name) return alert('⚠️ اكتب اسم الخدمة.');
+            if (!duration || duration <= 0) return alert('⚠️ أدخل مدة صحيحة.');
+            if (isNaN(price) || price < 0) return alert('⚠️ أدخل سعر صحيح.');
+
+            await providerServicesCollection(providerId).add({
+                name, durationMinutes: duration, price, isActive: true, createdAt: Date.now()
+            });
+
+            document.getElementById('svcName').value = '';
+            document.getElementById('svcDuration').value = '';
+            document.getElementById('svcPrice').value = '';
+            loadServices();
+        }
+
+        async function deleteService(id) {
+            if (!confirm('حذف هذي الخدمة؟')) return;
+            await providerServicesCollection(providerId).doc(id).delete();
+            loadServices();
+        }
+
+        async function loadBookings() {
+            const snap = await providerBookingsCollection(providerId)
+                .orderBy('createdAt', 'desc').limit(50).get();
+            const bookings = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const box = document.getElementById('bookingsListBox');
+
+            if (bookings.length === 0) {
+                box.innerHTML = '<p class="empty-note">ماكو حجوزات بعد</p>';
+                return;
+            }
+
+            const statusLabel = { pending: 'بانتظار التأكيد', confirmed: 'مؤكد', cancelled: 'ملغي' };
+
+            box.innerHTML = bookings.map(b => `
+                <div class="booking-row">
+                    <div class="details">
+                        <b>${b.customerName}</b> — ${b.serviceName}<br>
+                        📞 ${b.customerPhone} — 📅 ${b.bookingDate} ${b.bookingTime}<br>
+                        <span class="status-badge status-${b.status}">${statusLabel[b.status] || b.status}</span>
+                    </div>
+                    ${b.status === 'pending' ? `
+                        <div>
+                            <button class="mini-btn" style="background:#0d3d1a;color:#10b981;"
+                                    onclick="updateBookingStatus('${b.id}','confirmed')">✅</button>
+                            <button class="mini-btn" style="background:#3d0d0d;color:#ef4444;"
+                                    onclick="updateBookingStatus('${b.id}','cancelled')">❌</button>
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        async function updateBookingStatus(bookingId, status) {
+            await providerBookingsCollection(providerId).doc(bookingId).update({ status });
+            loadBookings();
+        }
+
+        function handleLogout() {
+            logOutProvider().then(() => window.location.href = 'provider-login.html');
+        }
+    </script>
+</body>
+</html>
