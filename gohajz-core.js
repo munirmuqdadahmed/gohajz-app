@@ -86,7 +86,71 @@ function logOutProvider() {
 }
 
 // ==========================================
-// 👤 تسجيل دخول مجهول شفاف للزبائن (يسمح لهم يحجزون بأمان بدون حساب)
+// 👤 حساب الزبون (حقيقي - يقدر يشوف حجوزاته بأي وقت)
+// ==========================================
+function getCurrentCustomerName() {
+    return localStorage.getItem('gohajz_customer_name') || '';
+}
+
+async function signUpCustomer(email, password, name, phone) {
+    const cred = await auth.createUserWithEmailAndPassword(email, password);
+    const uid  = cred.user.uid;
+
+    await db.collection('users').doc(uid).set({
+        email, name, phone: phone || '', role: 'customer', createdAt: Date.now()
+    }, { merge: true });
+
+    localStorage.setItem('gohajz_customer_name', name);
+    return { uid };
+}
+
+async function logInCustomer(email, password) {
+    const cred = await auth.signInWithEmailAndPassword(email, password);
+    const userDoc = await db.collection('users').doc(cred.user.uid).get();
+    const name = userDoc.exists ? (userDoc.data().name || '') : '';
+    localStorage.setItem('gohajz_customer_name', name);
+    return { uid: cred.user.uid, name };
+}
+
+function logOutCustomer() {
+    localStorage.removeItem('gohajz_customer_name');
+    return auth.signOut();
+}
+
+function isCustomerLoggedIn() {
+    return auth.currentUser && !auth.currentUser.isAnonymous;
+}
+
+// جلب كل حجوزات الزبون الحالي، عبر كل الصالونات دفعة وحدة (Collection Group Query)
+async function getMyBookings() {
+    const user = auth.currentUser;
+    if (!user || user.isAnonymous) return [];
+
+    const snap = await db.collectionGroup('bookings')
+        .where('customerUid', '==', user.uid)
+        .get();
+
+    const bookings = [];
+    for (const doc of snap.docs) {
+        const providerId = doc.ref.parent.parent.id;
+        bookings.push({ id: doc.id, providerId, ...doc.data() });
+    }
+    // ترتيب الأحدث أولاً
+    bookings.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+    // إضافة اسم الصالون لكل حجز (للعرض)
+    const providerCache = {};
+    for (const b of bookings) {
+        if (!providerCache[b.providerId]) {
+            providerCache[b.providerId] = await getProviderInfo(b.providerId);
+        }
+        b.providerName = providerCache[b.providerId]?.name || 'صالون محذوف';
+    }
+    return bookings;
+}
+
+// ==========================================
+// 👤 تسجيل دخول مجهول شفاف (احتياطي - يُستخدم بس لو الزبون ما بعده سجّل حساب)
 // ==========================================
 function ensureGuestSignedIn() {
     return new Promise((resolve, reject) => {
@@ -120,12 +184,26 @@ async function getAllActiveProviders(categoryFilter) {
     return list;
 }
 
-// إنشاء حجز جديد (الزبون - لازم يكون مسجّل دخول مجهول على الأقل)
+// 🆕 أيقونة مناسبة لكل قطاع - عام لكل الفئات، مو صالونات بس، عشان الأساس
+// يوسّع بسهولة لأي نوع نشاط يحتاج حجز (مطابق لخريطة القطاعات بالمستند)
+function getCategoryIcon(category) {
+    const icons = {
+        'رجالي': '💈', 'نسائي': '💇‍♀️',
+        'طبيب': '🩺', 'عيادة_تجميل': '💉', 'مختبر': '🧪', 'سونار': '📷',
+        'سبا': '🧖', 'نادي_رياضي': '🏋️',
+        'تعليم_سياقة': '🚗', 'حضانة': '🧸',
+        'غسيل_سيارات': '🚙', 'فني': '🛠️', 'أخرى': '📌'
+    };
+    return icons[category] || '📌';
+}
+
+// إنشاء حجز جديد (الزبون - لازم يكون مسجّل دخول على الأقل كضيف)
 async function createBooking(providerId, bookingData) {
-    await ensureGuestSignedIn();
+    const user = await ensureGuestSignedIn();
     const ref = providerBookingsCollection(providerId).doc();
     await ref.set({
         ...bookingData,
+        customerUid: user.uid, // 🆕 ضروري حتى يقدر الزبون يشوف حجوزاته لاحقاً
         status: 'pending',
         createdAt: Date.now()
     });
