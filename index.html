@@ -1,1 +1,143 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GoHajz - احجز موعدك بسهولة</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <style>
+        :root {
+            --gold: #C69C32;
+            --gold-light: #E5C158;
+            --green-deep: #123524;
+            --green-darker: #0a1f16;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Tajawal', sans-serif; direction: rtl;
+            background: var(--green-darker); color: #fff; min-height: 100vh;
+        }
+        header {
+            background: linear-gradient(135deg, var(--green-deep), var(--green-darker));
+            padding: 18px 16px; text-align: center; border-bottom: 2px solid var(--gold);
+        }
+        header h1 { color: var(--gold-light); font-size: 1.6rem; font-weight: 900; }
+        header p { color: #ccc; font-size: 0.8rem; margin-top: 4px; }
+        .provider-link {
+            position: fixed; top: 14px; left: 14px;
+            background: rgba(198,156,50,0.15); border: 1px solid var(--gold);
+            color: var(--gold-light); padding: 6px 12px; border-radius: 20px;
+            font-size: 0.75rem; text-decoration: none;
+        }
+        .search-box { padding: 16px; max-width: 500px; margin: 0 auto; }
+        .search-box input {
+            width: 100%; padding: 13px 16px; border-radius: 30px; border: none;
+            background: #1a2b22; color: #fff; font-size: 0.95rem; font-family: inherit;
+        }
+        .categories {
+            display: flex; gap: 8px; padding: 0 16px 16px; overflow-x: auto;
+            max-width: 500px; margin: 0 auto;
+        }
+        .cat-chip {
+            background: #1a2b22; border: 1px solid #2a3d33; color: #ccc;
+            padding: 8px 16px; border-radius: 20px; font-size: 0.8rem;
+            white-space: nowrap; cursor: pointer; flex-shrink: 0;
+        }
+        .cat-chip.active { background: var(--gold); color: #000; font-weight: 900; border-color: var(--gold); }
+        .providers-list { padding: 10px 16px 40px; max-width: 500px; margin: 0 auto; }
+        .provider-card {
+            background: #142a1f; border: 1px solid #24392c; border-radius: 14px;
+            padding: 14px; margin-bottom: 12px; display: flex; gap: 12px;
+            align-items: center; cursor: pointer; text-decoration: none; color: #fff;
+        }
+        .provider-card .avatar {
+            width: 56px; height: 56px; border-radius: 12px; background: var(--gold);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; flex-shrink: 0;
+        }
+        .provider-card .info h3 { font-size: 1rem; color: var(--gold-light); }
+        .provider-card .info p { font-size: 0.78rem; color: #999; margin-top: 3px; }
+        .empty-state { text-align: center; padding: 50px 20px; color: #777; }
+    </style>
+</head>
+<body>
+    <a href="provider-login.html" class="provider-link">
+        <i class="fa-solid fa-store"></i> صاحب صالون؟
+    </a>
 
+    <header>
+        <h1>📅 GoHajz</h1>
+        <p>احجز موعدك بدون اتصال، بدون انتظار</p>
+    </header>
+
+    <div class="search-box">
+        <input type="text" id="searchInput" placeholder="🔍 دوّر عن صالون أو خدمة..."
+               oninput="filterProviders()">
+    </div>
+
+    <div class="categories" id="categoriesBar">
+        <div class="cat-chip active" data-cat="" onclick="selectCategory('', this)">الكل</div>
+        <div class="cat-chip" data-cat="رجالي" onclick="selectCategory('رجالي', this)">💈 رجالي</div>
+        <div class="cat-chip" data-cat="نسائي" onclick="selectCategory('نسائي', this)">💇‍♀️ نسائي</div>
+    </div>
+
+    <div class="providers-list" id="providersList">
+        <div class="empty-state">⏳ جاري التحميل...</div>
+    </div>
+
+    <script src="gohajz-core.js"></script>
+    <script>
+        let allProviders = [];
+        let activeCategory = '';
+
+        async function loadProviders() {
+            try {
+                allProviders = await getAllActiveProviders();
+                renderProviders();
+            } catch (err) {
+                console.error(err);
+                document.getElementById('providersList').innerHTML =
+                    '<div class="empty-state">⚠️ تعذّر تحميل الصالونات. حاول تحدّث الصفحة.</div>';
+            }
+        }
+
+        function selectCategory(cat, el) {
+            activeCategory = cat;
+            document.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+            renderProviders();
+        }
+
+        function filterProviders() { renderProviders(); }
+
+        function renderProviders() {
+            const search = document.getElementById('searchInput').value.trim().toLowerCase();
+            let list = allProviders;
+            if (activeCategory) list = list.filter(p => p.category === activeCategory);
+            if (search) list = list.filter(p => (p.name || '').toLowerCase().includes(search));
+
+            const container = document.getElementById('providersList');
+            if (list.length === 0) {
+                container.innerHTML = '<div class="empty-state">😕 ماكو نتائج حالياً</div>';
+                return;
+            }
+
+            container.innerHTML = list.map(p => `
+                <a href="salon.html?id=${p.id}" class="provider-card">
+                    <div class="avatar">${p.category === 'رجالي' ? '💈' : '💇‍♀️'}</div>
+                    <div class="info">
+                        <h3>${p.name}</h3>
+                        <p>${p.city || ''} ${p.description ? '• ' + p.description.slice(0,30) : ''}</p>
+                    </div>
+                </a>
+            `).join('');
+        }
+
+        loadProviders();
+    </script>
+</body>
+</html>
