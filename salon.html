@@ -77,6 +77,12 @@
 
     <div class="section" id="bookingFormSection" style="display:none;">
         <h3 class="section-title">2️⃣ بياناتك</h3>
+        <div id="loginHint" style="background:#1a0d1a;border:1px solid var(--gold);
+                    border-radius:8px;padding:10px;margin-bottom:10px;font-size:0.78rem;
+                    color:#ccc;display:none;">
+            💡 <a href="customer-login.html" style="color:var(--gold-light);">سجّل دخولك</a>
+            حتى تقدر تشوف وتتابع هذا الحجز لاحقاً من "حجوزاتي"
+        </div>
         <input type="text" id="custName" placeholder="👤 اسمك">
         <input type="tel" id="custPhone" placeholder="📞 رقم هاتفك" style="direction:ltr;text-align:left;">
         <input type="date" id="bookingDate">
@@ -112,7 +118,7 @@
 
             document.getElementById('pageTitle').innerText = provider.name;
             document.getElementById('providerHeader').innerHTML = `
-                <div class="avatar">${provider.category === 'رجالي' ? '💈' : '💇‍♀️'}</div>
+                <div class="avatar">${getCategoryIcon(provider.category)}</div>
                 <h1>${provider.name}</h1>
                 <p>${provider.city || ''} ${provider.phone ? '• 📞 ' + provider.phone : ''}</p>
                 ${provider.description ? '<p style="margin-top:6px;">' + provider.description + '</p>' : ''}
@@ -155,6 +161,17 @@
             document.querySelectorAll('.service-card').forEach(el => el.classList.remove('selected'));
             document.getElementById('svc-' + id).classList.add('selected');
             document.getElementById('bookingFormSection').style.display = 'block';
+
+            // 🆕 لو الزبون مسجّل دخول بحساب حقيقي، نعبّي اسمه تلقائياً ونخفي
+            // تنبيه "سجّل دخولك" - لو ضيف/مجهول، نعرض التنبيه ونشجعه يسجّل
+            const user = auth.currentUser;
+            const hint = document.getElementById('loginHint');
+            if (user && !user.isAnonymous) {
+                document.getElementById('custName').value = getCurrentCustomerName();
+                hint.style.display = 'none';
+            } else {
+                hint.style.display = 'block';
+            }
         }
 
         async function confirmBooking() {
