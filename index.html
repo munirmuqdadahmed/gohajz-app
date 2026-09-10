@@ -27,8 +27,11 @@
         }
         header h1 { color: var(--gold-light); font-size: 1.6rem; font-weight: 900; }
         header p { color: #ccc; font-size: 0.8rem; margin-top: 4px; }
-        .provider-link {
-            position: fixed; top: 14px; left: 14px;
+        .top-links {
+            position: fixed; top: 14px; left: 14px; right: 14px;
+            display: flex; justify-content: space-between; z-index: 10;
+        }
+        .top-links a {
             background: rgba(198,156,50,0.15); border: 1px solid var(--gold);
             color: var(--gold-light); padding: 6px 12px; border-radius: 20px;
             font-size: 0.75rem; text-decoration: none;
@@ -65,9 +68,14 @@
     </style>
 </head>
 <body>
-    <a href="provider-login.html" class="provider-link">
-        <i class="fa-solid fa-store"></i> صاحب صالون؟
-    </a>
+    <div class="top-links">
+        <a href="my-bookings.html" id="myBookingsLink">
+            <i class="fa-solid fa-calendar-check"></i> حجوزاتي
+        </a>
+        <a href="provider-login.html">
+            <i class="fa-solid fa-store"></i> صاحب صالون؟
+        </a>
+    </div>
 
     <header>
         <h1>📅 GoHajz</h1>
@@ -83,6 +91,16 @@
         <div class="cat-chip active" data-cat="" onclick="selectCategory('', this)">الكل</div>
         <div class="cat-chip" data-cat="رجالي" onclick="selectCategory('رجالي', this)">💈 رجالي</div>
         <div class="cat-chip" data-cat="نسائي" onclick="selectCategory('نسائي', this)">💇‍♀️ نسائي</div>
+        <div class="cat-chip" data-cat="طبيب" onclick="selectCategory('طبيب', this)">🩺 أطباء</div>
+        <div class="cat-chip" data-cat="عيادة_تجميل" onclick="selectCategory('عيادة_تجميل', this)">💉 تجميل</div>
+        <div class="cat-chip" data-cat="مختبر" onclick="selectCategory('مختبر', this)">🧪 مختبرات</div>
+        <div class="cat-chip" data-cat="سونار" onclick="selectCategory('سونار', this)">📷 سونار</div>
+        <div class="cat-chip" data-cat="سبا" onclick="selectCategory('سبا', this)">🧖 سبا</div>
+        <div class="cat-chip" data-cat="نادي_رياضي" onclick="selectCategory('نادي_رياضي', this)">🏋️ أندية</div>
+        <div class="cat-chip" data-cat="تعليم_سياقة" onclick="selectCategory('تعليم_سياقة', this)">🚗 تعليم سياقة</div>
+        <div class="cat-chip" data-cat="حضانة" onclick="selectCategory('حضانة', this)">🧸 حضانات</div>
+        <div class="cat-chip" data-cat="غسيل_سيارات" onclick="selectCategory('غسيل_سيارات', this)">🚙 غسيل سيارات</div>
+        <div class="cat-chip" data-cat="فني" onclick="selectCategory('فني', this)">🛠️ فنيين</div>
     </div>
 
     <div class="providers-list" id="providersList">
@@ -128,7 +146,7 @@
 
             container.innerHTML = list.map(p => `
                 <a href="salon.html?id=${p.id}" class="provider-card">
-                    <div class="avatar">${p.category === 'رجالي' ? '💈' : '💇‍♀️'}</div>
+                    <div class="avatar">${getCategoryIcon(p.category)}</div>
                     <div class="info">
                         <h3>${p.name}</h3>
                         <p>${p.city || ''} ${p.description ? '• ' + p.description.slice(0,30) : ''}</p>
