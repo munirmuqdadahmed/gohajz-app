@@ -1,1 +1,202 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GoHajz - حجز موعد</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <style>
+        :root {
+            --gold: #C69C32; --gold-light: #E5C158;
+            --green-deep: #123524; --green-darker: #0a1f16;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Tajawal', sans-serif; direction: rtl;
+            background: var(--green-darker); color: #fff; min-height: 100vh; padding-bottom: 40px;
+        }
+        .top-bar {
+            display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+            background: var(--green-deep); border-bottom: 1px solid #24392c;
+        }
+        .top-bar a { color: var(--gold-light); font-size: 1.2rem; text-decoration: none; }
+        .top-bar h2 { color: var(--gold-light); font-size: 1.1rem; }
+        .section { max-width: 500px; margin: 0 auto; padding: 16px; }
+        .provider-header { text-align: center; padding: 20px 16px; }
+        .provider-header .avatar {
+            width: 70px; height: 70px; border-radius: 16px; background: var(--gold);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2rem; margin: 0 auto 10px;
+        }
+        .provider-header h1 { color: var(--gold-light); font-size: 1.3rem; }
+        .provider-header p { color: #999; font-size: 0.82rem; margin-top: 4px; }
+        h3.section-title { color: var(--gold-light); font-size: 0.95rem; margin-bottom: 10px; }
+        .service-card {
+            background: #142a1f; border: 1px solid #24392c; border-radius: 12px;
+            padding: 12px 14px; margin-bottom: 8px; display: flex;
+            justify-content: space-between; align-items: center; cursor: pointer;
+        }
+        .service-card.selected { border-color: var(--gold); background: #1a2f22; }
+        .service-card .name { font-weight: bold; font-size: 0.9rem; }
+        .service-card .dur { color: #888; font-size: 0.72rem; }
+        .service-card .price { color: var(--gold-light); font-weight: 900; }
+        input, select, textarea {
+            width: 100%; padding: 11px; background: #142a1f; border: 1px solid #24392c;
+            border-radius: 8px; color: #fff; font-size: 0.9rem; font-family: inherit;
+            margin-bottom: 10px;
+        }
+        .book-btn {
+            width: 100%; padding: 14px; background: var(--gold); color: #000;
+            border: none; border-radius: 10px; font-weight: 900; font-size: 1rem;
+            cursor: pointer; font-family: inherit; margin-top: 10px;
+        }
+        .book-btn:disabled { opacity: 0.5; }
+        .success-box {
+            text-align: center; padding: 30px 20px; background: #142a1f;
+            border: 2px solid var(--gold); border-radius: 14px; margin-top: 20px;
+        }
+        .empty-note { color: #777; font-size: 0.85rem; text-align: center; padding: 20px; }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <a href="index.html"><i class="fa-solid fa-arrow-right"></i></a>
+        <h2 id="pageTitle">جاري التحميل...</h2>
+    </div>
 
+    <div class="provider-header" id="providerHeader"></div>
+
+    <div class="section">
+        <h3 class="section-title">1️⃣ اختر الخدمة</h3>
+        <div id="servicesList"><p class="empty-note">جاري التحميل...</p></div>
+    </div>
+
+    <div class="section" id="bookingFormSection" style="display:none;">
+        <h3 class="section-title">2️⃣ بياناتك</h3>
+        <input type="text" id="custName" placeholder="👤 اسمك">
+        <input type="tel" id="custPhone" placeholder="📞 رقم هاتفك" style="direction:ltr;text-align:left;">
+        <input type="date" id="bookingDate">
+        <select id="bookingTime">
+            <option value="">-- اختر الوقت --</option>
+        </select>
+        <textarea id="bookingNotes" placeholder="ملاحظة (اختياري)" rows="2"></textarea>
+        <button class="book-btn" id="confirmBtn" onclick="confirmBooking()">✅ تأكيد الحجز</button>
+    </div>
+
+    <div class="section" id="successSection" style="display:none;">
+        <div class="success-box">
+            <div style="font-size:2.5rem;">🎉</div>
+            <h3 style="color:var(--gold-light);margin-top:8px;">تم حجز موعدك!</h3>
+            <p style="color:#aaa;font-size:0.85rem;margin-top:8px;">
+                راح يتواصلون وياك لتأكيد الموعد قريباً
+            </p>
+        </div>
+    </div>
+
+    <script src="gohajz-core.js"></script>
+    <script>
+        const params = new URLSearchParams(location.search);
+        const providerId = params.get('id');
+        let services = [];
+        let selectedService = null;
+
+        async function loadProvider() {
+            if (!providerId) { alert('رابط غير صحيح'); location.href = 'index.html'; return; }
+
+            const provider = await getProviderInfo(providerId);
+            if (!provider) { alert('هذا الصالون غير موجود'); location.href = 'index.html'; return; }
+
+            document.getElementById('pageTitle').innerText = provider.name;
+            document.getElementById('providerHeader').innerHTML = `
+                <div class="avatar">${provider.category === 'رجالي' ? '💈' : '💇‍♀️'}</div>
+                <h1>${provider.name}</h1>
+                <p>${provider.city || ''} ${provider.phone ? '• 📞 ' + provider.phone : ''}</p>
+                ${provider.description ? '<p style="margin-top:6px;">' + provider.description + '</p>' : ''}
+            `;
+
+            const snap = await providerServicesCollection(providerId)
+                .where('isActive', '==', true).get();
+            services = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            const list = document.getElementById('servicesList');
+            if (services.length === 0) {
+                list.innerHTML = '<p class="empty-note">ماكو خدمات مضافة حالياً</p>';
+                return;
+            }
+            list.innerHTML = services.map(s => `
+                <div class="service-card" id="svc-${s.id}" onclick="selectService('${s.id}')">
+                    <div>
+                        <div class="name">${s.name}</div>
+                        <div class="dur">⏱ ${s.durationMinutes} دقيقة</div>
+                    </div>
+                    <div class="price">${s.price.toLocaleString('ar-IQ')} د.ع</div>
+                </div>
+            `).join('');
+
+            // تعبئة خانة الوقت بأوقات كل نص ساعة من 9ص لـ9م (مبسّط للـMVP)
+            const timeSel = document.getElementById('bookingTime');
+            for (let h = 9; h <= 21; h++) {
+                ['00','30'].forEach(m => {
+                    const label = h + ':' + m;
+                    timeSel.innerHTML += `<option value="${label}">${label}</option>`;
+                });
+            }
+            const dateInput = document.getElementById('bookingDate');
+            dateInput.min = new Date().toISOString().split('T')[0];
+            dateInput.value = new Date().toISOString().split('T')[0];
+        }
+
+        function selectService(id) {
+            selectedService = services.find(s => s.id === id);
+            document.querySelectorAll('.service-card').forEach(el => el.classList.remove('selected'));
+            document.getElementById('svc-' + id).classList.add('selected');
+            document.getElementById('bookingFormSection').style.display = 'block';
+        }
+
+        async function confirmBooking() {
+            const name  = document.getElementById('custName').value.trim();
+            const phone = document.getElementById('custPhone').value.trim();
+            const date  = document.getElementById('bookingDate').value;
+            const time  = document.getElementById('bookingTime').value;
+            const notes = document.getElementById('bookingNotes').value.trim();
+            const btn   = document.getElementById('confirmBtn');
+
+            if (!selectedService) return alert('⚠️ اختر خدمة أولاً.');
+            if (!name)  return alert('⚠️ اكتب اسمك.');
+            if (!phone) return alert('⚠️ اكتب رقم هاتفك.');
+            if (!date || !time) return alert('⚠️ اختر التاريخ والوقت.');
+
+            btn.disabled = true;
+            btn.innerText = 'جاري الحجز...';
+
+            try {
+                await createBooking(providerId, {
+                    customerName: name,
+                    customerPhone: phone,
+                    serviceId: selectedService.id,
+                    serviceName: selectedService.name,
+                    servicePrice: selectedService.price,
+                    bookingDate: date,
+                    bookingTime: time,
+                    notes
+                });
+
+                document.getElementById('bookingFormSection').style.display = 'none';
+                document.getElementById('servicesList').parentElement.style.display = 'none';
+                document.getElementById('successSection').style.display = 'block';
+            } catch (err) {
+                console.error(err);
+                btn.disabled = false;
+                btn.innerText = '✅ تأكيد الحجز';
+                alert('⚠️ صار خطأ أثناء الحجز، حاول مرة ثانية.');
+            }
+        }
+
+        loadProvider();
+    </script>
+</body>
+</html>
