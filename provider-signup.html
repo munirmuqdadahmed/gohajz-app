@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GoHajz للأعمال - سجّل صالونك</title>
+    <title>GoHajz للأعمال - سجّل نشاطك</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;900&display=swap" rel="stylesheet">
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
@@ -42,7 +42,7 @@
 <body>
     <div class="card">
         <h1>📅 GoHajz للأعمال</h1>
-        <p class="sub">سجّل صالونك وابدأ تستقبل حجوزات أونلاين</p>
+        <p class="sub">سجّل نشاطك وابدأ تستقبل حجوزات أونلاين</p>
 
         <label>نوع النشاط:</label>
         <select id="category">
@@ -71,8 +71,8 @@
             </optgroup>
         </select>
 
-        <label>اسم الصالون:</label>
-        <input type="text" id="providerName" placeholder="مثال: صالون الأناقة">
+        <label>اسم النشاط/العمل:</label>
+        <input type="text" id="providerName" placeholder="مثال: صالون الأناقة / عيادة الدكتور أحمد">
 
         <label>المدينة:</label>
         <input type="text" id="city" placeholder="مثال: بغداد">
@@ -86,7 +86,7 @@
         <label>كلمة المرور:</label>
         <input type="password" id="password" placeholder="6 أحرف على الأقل">
 
-        <button id="submitBtn" onclick="handleSignup()">تسجيل الصالون</button>
+        <button id="submitBtn" onclick="handleSignup()">تسجيل النشاط</button>
         <div id="errorMsg" class="error"></div>
 
         <div class="link">عندك حساب أصلًا؟ <a href="provider-login.html">سجّل دخولك</a></div>
@@ -105,7 +105,7 @@
             const btn = document.getElementById('submitBtn');
             errEl.innerText = '';
 
-            if (!providerName) return errEl.innerText = '⚠️ أدخل اسم الصالون.';
+            if (!providerName) return errEl.innerText = '⚠️ أدخل اسم النشاط/العمل.';
             if (!email) return errEl.innerText = '⚠️ أدخل بريدك الإلكتروني.';
             if (password.length < 6) return errEl.innerText = '⚠️ كلمة المرور 6 أحرف على الأقل.';
 
@@ -117,7 +117,7 @@
                 window.location.href = 'provider-dashboard.html';
             } catch (err) {
                 btn.disabled = false;
-                btn.innerText = 'تسجيل الصالون';
+                btn.innerText = 'تسجيل النشاط';
                 const map = {
                     'auth/email-already-in-use': '⚠️ هذا البريد مستخدم أصلًا.',
                     'auth/invalid-email': '⚠️ صيغة البريد غير صحيحة.',
