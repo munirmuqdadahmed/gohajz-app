@@ -114,7 +114,7 @@
             if (!providerId) { alert('رابط غير صحيح'); location.href = 'index.html'; return; }
 
             const provider = await getProviderInfo(providerId);
-            if (!provider) { alert('هذا الصالون غير موجود'); location.href = 'index.html'; return; }
+            if (!provider) { alert('هذا النشاط غير موجود'); location.href = 'index.html'; return; }
 
             document.getElementById('pageTitle').innerText = provider.name;
             document.getElementById('providerHeader').innerHTML = `
