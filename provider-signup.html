@@ -44,10 +44,31 @@
         <h1>📅 GoHajz للأعمال</h1>
         <p class="sub">سجّل صالونك وابدأ تستقبل حجوزات أونلاين</p>
 
-        <label>نوع الصالون:</label>
+        <label>نوع النشاط:</label>
         <select id="category">
-            <option value="رجالي">💈 رجالي</option>
-            <option value="نسائي">💇‍♀️ نسائي</option>
+            <optgroup label="💇 صالونات">
+                <option value="رجالي">💈 صالون رجالي</option>
+                <option value="نسائي">💇‍♀️ صالون نسائي</option>
+            </optgroup>
+            <optgroup label="🏥 طبي">
+                <option value="طبيب">🩺 عيادة طبيب</option>
+                <option value="عيادة_تجميل">💉 عيادة تجميل</option>
+                <option value="مختبر">🧪 مختبر وتحاليل</option>
+                <option value="سونار">📷 سونار وأشعة</option>
+            </optgroup>
+            <optgroup label="💪 لياقة وعافية">
+                <option value="سبا">🧖 سبا ومساج</option>
+                <option value="نادي_رياضي">🏋️ نادي رياضي</option>
+            </optgroup>
+            <optgroup label="🎓 تعليم">
+                <option value="تعليم_سياقة">🚗 تعليم سياقة</option>
+                <option value="حضانة">🧸 حضانة / روضة</option>
+            </optgroup>
+            <optgroup label="🔧 أخرى">
+                <option value="غسيل_سيارات">🚙 غسيل سيارات</option>
+                <option value="فني">🛠️ فني/صيانة</option>
+                <option value="أخرى">📌 نشاط آخر</option>
+            </optgroup>
         </select>
 
         <label>اسم الصالون:</label>
