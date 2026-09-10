@@ -108,7 +108,7 @@
             const provider = await getProviderInfo(providerId);
             if (!provider) { alert('⚠️ تعذّر إيجاد بيانات صالونك.'); return; }
             document.getElementById('providerNameHeader').innerText =
-                (provider.category === 'رجالي' ? '💈 ' : '💇‍♀️ ') + provider.name;
+                getCategoryIcon(provider.category) + ' ' + provider.name;
 
             loadServices();
             loadBookings();
