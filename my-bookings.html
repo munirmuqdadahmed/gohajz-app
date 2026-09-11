@@ -1,1 +1,113 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>حجوزاتي - GoHajz</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <style>
+        :root { --gold: #C69C32; --gold-light: #E5C158; --green-deep: #123524; --green-darker: #0a1f16; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Tajawal', sans-serif; direction: rtl;
+            background: var(--green-darker); color: #fff; min-height: 100vh; padding-bottom: 40px;
+        }
+        .top-bar {
+            display: flex; align-items: center; justify-content: space-between; padding: 14px 16px;
+            background: var(--green-deep); border-bottom: 1px solid #24392c;
+        }
+        .top-bar a { color: var(--gold-light); font-size: 1.2rem; text-decoration: none; }
+        .top-bar h2 { color: var(--gold-light); font-size: 1.1rem; }
+        .logout-link { font-size: 0.78rem; color: #ef4444; }
+        .section { max-width: 500px; margin: 0 auto; padding: 16px; }
+        .booking-card {
+            background: #142a1f; border: 1px solid #24392c; border-radius: 12px;
+            padding: 14px; margin-bottom: 10px;
+        }
+        .booking-card .top-row { display: flex; justify-content: space-between; align-items: center; }
+        .booking-card .provider-name { color: var(--gold-light); font-weight: 900; font-size: 0.95rem; }
+        .booking-card .details { font-size: 0.82rem; color: #ccc; margin-top: 6px; line-height: 1.7; }
+        .status-badge { font-size: 0.68rem; padding: 3px 10px; border-radius: 10px; font-weight: bold; }
+        .status-pending { background: #3d2e0d; color: #fbbf24; }
+        .status-confirmed { background: #0d3d1a; color: #10b981; }
+        .status-cancelled { background: #3d0d0d; color: #ef4444; }
+        .empty-state { text-align: center; padding: 50px 20px; color: #777; }
+        .login-prompt {
+            text-align: center; padding: 40px 20px; background: #142a1f;
+            border-radius: 14px; margin: 20px 16px; border: 1px solid var(--gold);
+        }
+        .login-prompt a {
+            display: inline-block; margin-top: 14px; background: var(--gold); color: #000;
+            padding: 10px 22px; border-radius: 8px; text-decoration: none; font-weight: 900;
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div style="display:flex;align-items:center;gap:10px;">
+            <a href="index.html"><i class="fa-solid fa-arrow-right"></i></a>
+            <h2>📅 حجوزاتي</h2>
+        </div>
+        <a href="#" class="logout-link" onclick="handleLogout()">خروج</a>
+    </div>
 
+    <div id="content" class="section">
+        <p class="empty-state">⏳ جاري التحميل...</p>
+    </div>
+
+    <script src="gohajz-core.js"></script>
+    <script>
+        auth.onAuthStateChanged(async user => {
+            const content = document.getElementById('content');
+
+            if (!user || user.isAnonymous) {
+                content.innerHTML = `
+                    <div class="login-prompt">
+                        <div style="font-size:2rem;">🔐</div>
+                        <p style="color:#ccc;margin-top:10px;">
+                            سجّل دخولك حتى تشوف كل حجوزاتك بمكان وحد
+                        </p>
+                        <a href="customer-login.html">تسجيل الدخول</a>
+                    </div>
+                `;
+                return;
+            }
+
+            try {
+                const bookings = await getMyBookings();
+                if (bookings.length === 0) {
+                    content.innerHTML = '<p class="empty-state">😕 ماكو حجوزات لك بعد</p>';
+                    return;
+                }
+
+                const statusLabel = { pending: 'بانتظار التأكيد', confirmed: 'مؤكد ✅', cancelled: 'ملغي ❌' };
+
+                content.innerHTML = bookings.map(b => `
+                    <div class="booking-card">
+                        <div class="top-row">
+                            <span class="provider-name">${b.providerName}</span>
+                            <span class="status-badge status-${b.status}">${statusLabel[b.status] || b.status}</span>
+                        </div>
+                        <div class="details">
+                            ✂️ ${b.serviceName} — ${(b.servicePrice||0).toLocaleString('ar-IQ')} د.ع<br>
+                            📅 ${b.bookingDate} — 🕐 ${b.bookingTime}
+                            ${b.notes ? '<br>📝 ' + b.notes : ''}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error(err);
+                content.innerHTML = '<p class="empty-state">⚠️ تعذّر تحميل حجوزاتك. حاول تحدّث الصفحة.</p>';
+            }
+        });
+
+        function handleLogout() {
+            logOutCustomer().then(() => window.location.href = 'index.html');
+        }
+    </script>
+</body>
+</html>
