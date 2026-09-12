@@ -61,10 +61,10 @@
 
     <script src="gohajz-core.js"></script>
     <script>
-        auth.onAuthStateChanged(async user => {
+        (async function initMyBookings() {
             const content = document.getElementById('content');
 
-            if (!user || user.isAnonymous) {
+            if (!isCustomerLoggedIn()) {
                 content.innerHTML = `
                     <div class="login-prompt">
                         <div style="font-size:2rem;">🔐</div>
@@ -78,6 +78,7 @@
             }
 
             try {
+                await ensureGuestSignedIn();
                 const bookings = await getMyBookings();
                 if (bookings.length === 0) {
                     content.innerHTML = '<p class="empty-state">😕 ماكو حجوزات لك بعد</p>';
@@ -103,10 +104,11 @@
                 console.error(err);
                 content.innerHTML = '<p class="empty-state">⚠️ تعذّر تحميل حجوزاتك. حاول تحدّث الصفحة.</p>';
             }
-        });
+        })();
 
         function handleLogout() {
-            logOutCustomer().then(() => window.location.href = 'index.html');
+            logOutCustomer();
+            window.location.href = 'index.html';
         }
     </script>
 </body>
