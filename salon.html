@@ -162,12 +162,12 @@
             document.getElementById('svc-' + id).classList.add('selected');
             document.getElementById('bookingFormSection').style.display = 'block';
 
-            // 🆕 لو الزبون مسجّل دخول بحساب حقيقي، نعبّي اسمه تلقائياً ونخفي
-            // تنبيه "سجّل دخولك" - لو ضيف/مجهول، نعرض التنبيه ونشجعه يسجّل
-            const user = auth.currentUser;
+            // 🆕 بما إن الزبون لازم يكون مسجّل دخول أصلاً (بوابة إجبارية
+            // بالصفحة الرئيسية)، نعبّي اسمه ورقم هاتفه تلقائياً من حسابه
             const hint = document.getElementById('loginHint');
-            if (user && !user.isAnonymous) {
-                document.getElementById('custName').value = getCurrentCustomerName();
+            if (isCustomerLoggedIn()) {
+                document.getElementById('custName').value  = getCurrentCustomerName();
+                document.getElementById('custPhone').value = getCurrentCustomerPhone() || '';
                 hint.style.display = 'none';
             } else {
                 hint.style.display = 'block';
