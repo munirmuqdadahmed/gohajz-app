@@ -86,48 +86,81 @@ function logOutProvider() {
 }
 
 // ==========================================
-// 👤 حساب الزبون (حقيقي - يقدر يشوف حجوزاته بأي وقت)
+// 👤 حساب الزبون - رقم هاتف + رمز شخصي (بدون إيميل، ملائم للسياق العراقي)
 // ==========================================
+function getCurrentCustomerPhone() {
+    return localStorage.getItem('gohajz_customer_phone') || null;
+}
+function setCurrentCustomerPhone(phone) {
+    localStorage.setItem('gohajz_customer_phone', phone);
+}
+function clearCurrentCustomerPhone() {
+    localStorage.removeItem('gohajz_customer_phone');
+}
 function getCurrentCustomerName() {
     return localStorage.getItem('gohajz_customer_name') || '';
 }
 
-async function signUpCustomer(email, password, name, phone) {
-    const cred = await auth.createUserWithEmailAndPassword(email, password);
-    const uid  = cred.user.uid;
+// 📝 تسجيل زبون جديد - اسم، هاتف، جنس، مواليد، محافظة، رمز شخصي
+async function signUpCustomer(name, phone, gender, birthdate, governorate, pin) {
+    const cleanPhone = String(phone).replace(/[^0-9]/g,'');
+    if (!cleanPhone || cleanPhone.length < 10)
+        throw { message: 'رقم الهاتف غير صحيح' };
+    if (!pin || pin.length < 4)
+        throw { message: 'الرمز 4 أرقام على الأقل' };
 
-    await db.collection('users').doc(uid).set({
-        email, name, phone: phone || '', role: 'customer', createdAt: Date.now()
-    }, { merge: true });
+    await ensureGuestSignedIn(); // تسجيل دخول مجهول - يكفي للوصول الآمن لقاعدة البيانات
 
+    const existing = await db.collection('customers').doc(cleanPhone).get();
+    if (existing.exists)
+        throw { message: 'هذا الرقم مسجّل حساب أصلاً - سجّل دخولك' };
+
+    await db.collection('customers').doc(cleanPhone).set({
+        name, phone: cleanPhone, gender, birthdate, governorate, pin,
+        createdAt: Date.now()
+    });
+
+    setCurrentCustomerPhone(cleanPhone);
     localStorage.setItem('gohajz_customer_name', name);
-    return { uid };
+    return { phone: cleanPhone };
 }
 
-async function logInCustomer(email, password) {
-    const cred = await auth.signInWithEmailAndPassword(email, password);
-    const userDoc = await db.collection('users').doc(cred.user.uid).get();
-    const name = userDoc.exists ? (userDoc.data().name || '') : '';
-    localStorage.setItem('gohajz_customer_name', name);
-    return { uid: cred.user.uid, name };
+async function logInCustomer(phone, pin) {
+    const cleanPhone = String(phone).replace(/[^0-9]/g,'');
+    await ensureGuestSignedIn();
+
+    const doc = await db.collection('customers').doc(cleanPhone).get();
+    if (!doc.exists) throw { message: 'ماكو حساب بهذا الرقم' };
+    if (String(doc.data().pin) !== String(pin)) throw { message: 'الرمز غلط' };
+
+    setCurrentCustomerPhone(cleanPhone);
+    localStorage.setItem('gohajz_customer_name', doc.data().name || '');
+    return { phone: cleanPhone, name: doc.data().name };
 }
 
 function logOutCustomer() {
+    clearCurrentCustomerPhone();
     localStorage.removeItem('gohajz_customer_name');
-    return auth.signOut();
 }
 
 function isCustomerLoggedIn() {
-    return auth.currentUser && !auth.currentUser.isAnonymous;
+    return !!getCurrentCustomerPhone();
+}
+
+async function getCurrentCustomerInfo() {
+    const phone = getCurrentCustomerPhone();
+    if (!phone) return null;
+    const doc = await db.collection('customers').doc(phone).get();
+    return doc.exists ? { id: doc.id, ...doc.data() } : null;
 }
 
 // جلب كل حجوزات الزبون الحالي، عبر كل الصالونات دفعة وحدة (Collection Group Query)
 async function getMyBookings() {
-    const user = auth.currentUser;
-    if (!user || user.isAnonymous) return [];
+    const phone = getCurrentCustomerPhone();
+    if (!phone) return [];
 
     const snap = await db.collectionGroup('bookings')
-        .where('customerUid', '==', user.uid)
+        .where('customerPhone', '==', phone)
         .get();
 
     const bookings = [];
@@ -150,14 +183,13 @@ async function getMyBookings() {
 }
 
 // ==========================================
-// 👤 تسجيل دخول مجهول شفاف (احتياطي - يُستخدم بس لو الزبون ما بعده سجّل حساب)
+// 👤 تسجيل دخول مجهول شفاف (للوصول الآمن لقاعدة البيانات فقط - ما يمثّل
+// هوية الزبون، هوية الزبون الحقيقية هي رقم هاتفه المخزّن بـ localStorage)
 // ==========================================
 function ensureGuestSignedIn() {
     return new Promise((resolve, reject) => {
-        auth.onAuthStateChanged(user => {
-            if (user) { resolve(user); return; }
-            auth.signInAnonymously().then(cred => resolve(cred.user)).catch(reject);
-        });
+        if (auth.currentUser) { resolve(auth.currentUser); return; }
+        auth.signInAnonymously().then(cred => resolve(cred.user)).catch(reject);
     });
 }
 
@@ -197,13 +229,14 @@ function getCategoryIcon(category) {
     return icons[category] || '📌';
 }
 
-// إنشاء حجز جديد (الزبون - لازم يكون مسجّل دخول على الأقل كضيف)
+// إنشاء حجز جديد (الزبون - لازم يكون مسجّل حساب برقم هاتفه)
 async function createBooking(providerId, bookingData) {
-    const user = await ensureGuestSignedIn();
+    await ensureGuestSignedIn();
+    const customerPhone = getCurrentCustomerPhone();
     const ref = providerBookingsCollection(providerId).doc();
     await ref.set({
         ...bookingData,
-        customerUid: user.uid, // 🆕 ضروري حتى يقدر الزبون يشوف حجوزاته لاحقاً
+        customerPhone: customerPhone || null, // 🆕 ضروري حتى يقدر الزبون يشوف حجوزاته لاحقاً
         status: 'pending',
         createdAt: Date.now()
     });
