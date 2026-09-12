@@ -65,15 +65,56 @@
         .provider-card .info h3 { font-size: 1rem; color: var(--gold-light); }
         .provider-card .info p { font-size: 0.78rem; color: #999; margin-top: 3px; }
         .empty-state { text-align: center; padding: 50px 20px; color: #777; }
+
+        /* 🔐 بوابة التسجيل الإجبارية - أول شي يشوفه أي زائر جديد */
+        .auth-gate {
+            position: fixed; inset: 0; z-index: 999;
+            background: linear-gradient(160deg, var(--green-deep), var(--green-darker));
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 30px 24px; text-align: center;
+        }
+        .auth-gate .logo { font-size: 3rem; margin-bottom: 8px; }
+        .auth-gate h1 { color: var(--gold); font-size: 1.8rem; font-weight: 900; }
+        .auth-gate p.tagline { color: #ccc; font-size: 0.9rem; margin-top: 6px; margin-bottom: 30px; }
+        .auth-gate .perks {
+            background: rgba(198,156,50,0.08); border: 1px solid var(--gold);
+            border-radius: 10px; padding: 12px 16px; margin-bottom: 30px;
+            font-size: 0.82rem; color: #ddd; line-height: 1.9; max-width: 320px;
+        }
+        .auth-gate .gate-btn {
+            width: 100%; max-width: 320px; padding: 14px; border-radius: 10px;
+            font-weight: 900; font-size: 1rem; text-decoration: none;
+            margin-bottom: 12px; display: block;
+        }
+        .auth-gate .btn-primary { background: var(--gold); color: #000; }
+        .auth-gate .btn-secondary {
+            background: transparent; color: var(--gold); border: 1.5px solid var(--gold);
+        }
     </style>
 </head>
 <body>
+    <!-- 🔐 بوابة التسجيل الإجبارية -->
+    <div id="authGate" class="auth-gate">
+        <div class="logo">📅</div>
+        <h1>GoHajz</h1>
+        <p class="tagline">احجز موعدك بدون اتصال، بدون انتظار</p>
+        <div class="perks">
+            🎁 احجز عند أي صالون أو عيادة أو نشاط بضغطة وحدة<br>
+            📋 تابع كل حجوزاتك بمكان وحد<br>
+            🔔 إشعارات فورية بحالة حجزك
+        </div>
+        <a href="customer-signup.html" class="gate-btn btn-primary">إنشاء حساب جديد</a>
+        <a href="customer-login.html" class="gate-btn btn-secondary">تسجيل الدخول</a>
+    </div>
+
+    <!-- 🏠 المحتوى الرئيسي - يظهر بس بعد التسجيل/الدخول -->
+    <div id="mainAppContent" style="display:none;">
     <div class="top-links">
         <a href="my-bookings.html" id="myBookingsLink">
             <i class="fa-solid fa-calendar-check"></i> حجوزاتي
         </a>
         <a href="provider-login.html">
-            <i class="fa-solid fa-store"></i> صاحب صالون؟
+            <i class="fa-solid fa-store"></i> صاحب عمل؟
         </a>
     </div>
 
@@ -83,7 +124,7 @@
     </header>
 
     <div class="search-box">
-        <input type="text" id="searchInput" placeholder="🔍 دوّر عن صالون أو خدمة..."
+        <input type="text" id="searchInput" placeholder="🔍 دوّر عن نشاط أو خدمة..."
                oninput="filterProviders()">
     </div>
 
@@ -106,11 +147,26 @@
     <div class="providers-list" id="providersList">
         <div class="empty-state">⏳ جاري التحميل...</div>
     </div>
+    </div> <!-- إغلاق mainAppContent -->
 
     <script src="gohajz-core.js"></script>
     <script>
         let allProviders = [];
         let activeCategory = '';
+
+        // 🔐 فحص تسجيل الدخول أول شي - ما نعرض المحتوى إلا بعد التأكد
+        (async function checkAuthGate() {
+            try {
+                if (typeof isCustomerLoggedIn === 'function' && isCustomerLoggedIn()) {
+                    document.getElementById('authGate').style.display = 'none';
+                    document.getElementById('mainAppContent').style.display = 'block';
+                    loadProviders();
+                }
+                // إذا مو مسجّل دخول، تضل بوابة التسجيل ظاهرة (السلوك الافتراضي)
+            } catch (err) {
+                console.error('تعذّر فحص حالة التسجيل:', err);
+            }
+        })();
 
         async function loadProviders() {
             try {
@@ -119,7 +175,7 @@
             } catch (err) {
                 console.error(err);
                 document.getElementById('providersList').innerHTML =
-                    '<div class="empty-state">⚠️ تعذّر تحميل الصالونات. حاول تحدّث الصفحة.</div>';
+                    '<div class="empty-state">⚠️ تعذّر تحميل الأنشطة. حاول تحدّث الصفحة.</div>';
             }
         }
 
