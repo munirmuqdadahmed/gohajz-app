@@ -5,9 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GoHajz للأعمال - سجّل نشاطك</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <style>
         :root { --gold: #C69C32; --green-deep: #123524; --green-darker: #0a1f16; }
         * { box-sizing: border-box; }
@@ -19,7 +21,7 @@
         }
         .card {
             background: #142a1f; border: 1px solid #24392c; border-radius: 16px;
-            padding: 30px 24px; max-width: 400px; width: 100%;
+            padding: 30px 24px; max-width: 420px; width: 100%;
         }
         h1 { text-align: center; color: var(--gold); font-size: 1.3rem; margin-bottom: 6px; }
         p.sub { text-align: center; color: #888; font-size: 0.85rem; margin-bottom: 20px; }
@@ -28,6 +30,7 @@
             width: 100%; padding: 11px; background: #0a1f16; border: 1px solid #24392c;
             border-radius: 8px; color: #fff; font-size: 0.95rem; font-family: inherit;
         }
+        .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         button {
             width: 100%; margin-top: 22px; padding: 13px; background: var(--gold);
             color: #000; border: none; border-radius: 8px; font-weight: 900;
@@ -37,6 +40,21 @@
         .error { color: #ef4444; font-size: 0.82rem; margin-top: 10px; text-align: center; }
         .link { text-align: center; margin-top: 16px; font-size: 0.85rem; }
         .link a { color: #E5C158; text-decoration: none; }
+        #locateBtn {
+            margin-top: 10px; background: #1a2b22; color: var(--gold);
+            border: 1px solid var(--gold); padding: 9px; font-size: 0.85rem;
+        }
+        #mapContainer {
+            height: 220px; border-radius: 8px; margin-top: 10px; overflow: hidden;
+            border: 1px solid #24392c; display: none;
+        }
+        .map-hint { font-size: 0.7rem; color: #888; margin-top: 5px; }
+        .location-status {
+            font-size: 0.78rem; margin-top: 8px; padding: 8px; border-radius: 6px;
+            text-align: center; display: none;
+        }
+        .location-status.ok { background: #0d3d1a; color: #10b981; display: block; }
+        .location-status.pending { background: #1a1608; color: #fbbf24; display: block; }
     </style>
 </head>
 <body>
@@ -74,17 +92,53 @@
         <label>اسم النشاط/العمل:</label>
         <input type="text" id="providerName" placeholder="مثال: صالون الأناقة / عيادة الدكتور أحمد">
 
-        <label>المدينة:</label>
-        <input type="text" id="city" placeholder="مثال: بغداد">
+        <div class="row2">
+            <div>
+                <label>المحافظة:</label>
+                <select id="governorate">
+                    <option value="بغداد">بغداد</option>
+                    <option value="البصرة">البصرة</option>
+                    <option value="نينوى">نينوى</option>
+                    <option value="أربيل">أربيل</option>
+                    <option value="النجف">النجف</option>
+                    <option value="كربلاء">كربلاء</option>
+                    <option value="ذي قار">ذي قار</option>
+                    <option value="بابل">بابل</option>
+                    <option value="الأنبار">الأنبار</option>
+                    <option value="ديالى">ديالى</option>
+                    <option value="كركوك">كركوك</option>
+                    <option value="واسط">واسط</option>
+                    <option value="ميسان">ميسان</option>
+                    <option value="صلاح الدين">صلاح الدين</option>
+                    <option value="القادسية">القادسية</option>
+                    <option value="المثنى">المثنى</option>
+                    <option value="دهوك">دهوك</option>
+                    <option value="السليمانية">السليمانية</option>
+                </select>
+            </div>
+            <div>
+                <label>المنطقة:</label>
+                <input type="text" id="area" placeholder="مثال: الكرادة">
+            </div>
+        </div>
 
-        <label>رقم الهاتف:</label>
+        <label>📍 موقعك على الخريطة:</label>
+        <button type="button" id="locateBtn" onclick="detectMyLocation()">
+            📍 استخدم موقعي الحالي (وأنا بالمحل)
+        </button>
+        <div id="mapContainer"></div>
+        <p class="map-hint">💡 بعد ما يفتح الموقع، تقدر تسحب الدبوس 📍 يضبط بالضبط مكان محلك.</p>
+        <div id="locationStatus" class="location-status"></div>
+
+        <label>رقم هاتفك:</label>
         <input type="tel" id="phone" placeholder="07xxxxxxxxx" style="direction:ltr;text-align:left;">
 
-        <label>بريدك الإلكتروني:</label>
-        <input type="email" id="email" placeholder="you@example.com">
-
-        <label>كلمة المرور:</label>
-        <input type="password" id="password" placeholder="6 أحرف على الأقل">
+        <label>اختر رمز شخصي (4 أرقام على الأقل):</label>
+        <input type="password" id="pin" placeholder="مثال: 1234" inputmode="numeric"
+               style="direction:ltr;text-align:center;letter-spacing:3px;">
+        <p style="font-size:0.7rem;color:#888;margin-top:5px;">
+            💡 تحفظه وتستخدمه لدخولك بأي وقت - بدون إيميل ولا كلمة مرور معقّدة.
+        </p>
 
         <button id="submitBtn" onclick="handleSignup()">تسجيل النشاط</button>
         <div id="errorMsg" class="error"></div>
@@ -94,36 +148,93 @@
 
     <script src="gohajz-core.js"></script>
     <script>
+        let map = null;
+        let marker = null;
+        let selectedLocation = null; // {lat, lng}
+
+        function initMap(lat, lng) {
+            document.getElementById('mapContainer').style.display = 'block';
+            if (!map) {
+                map = L.map('mapContainer').setView([lat, lng], 15);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap'
+                }).addTo(map);
+                marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+                marker.on('dragend', () => {
+                    const pos = marker.getLatLng();
+                    selectedLocation = { lat: pos.lat, lng: pos.lng };
+                    updateLocationStatus();
+                });
+                map.on('click', e => {
+                    marker.setLatLng(e.latlng);
+                    selectedLocation = { lat: e.latlng.lat, lng: e.latlng.lng };
+                    updateLocationStatus();
+                });
+            } else {
+                map.setView([lat, lng], 15);
+                marker.setLatLng([lat, lng]);
+            }
+            selectedLocation = { lat, lng };
+            updateLocationStatus();
+            setTimeout(() => map.invalidateSize(), 200);
+        }
+
+        function updateLocationStatus() {
+            const el = document.getElementById('locationStatus');
+            el.className = 'location-status ok';
+            el.innerText = '✅ تم تحديد الموقع - تقدر تسحب الدبوس لو تريد تعدّله بالضبط';
+        }
+
+        async function detectMyLocation() {
+            const btn = document.getElementById('locateBtn');
+            const statusEl = document.getElementById('locationStatus');
+            btn.disabled = true;
+            btn.innerText = '⏳ جاري تحديد موقعك...';
+            statusEl.className = 'location-status pending';
+            statusEl.innerText = '📡 ينتظر إذن الوصول لموقعك من المتصفح...';
+
+            try {
+                const loc = await getCustomerCurrentLocation();
+                initMap(loc.lat, loc.lng);
+                btn.innerText = '📍 استخدم موقعي الحالي (وأنا بالمحل)';
+            } catch (err) {
+                statusEl.className = 'location-status pending';
+                statusEl.innerText = '⚠️ تعذّر الوصول لموقعك - تأكد وافقت على إذن الموقع بالمتصفح، أو حدد يدوياً على الخريطة بالأسفل';
+                initMap(33.3152, 44.3661); // بغداد كموقع افتراضي لو رفض الإذن
+                btn.innerText = '📍 استخدم موقعي الحالي (وأنا بالمحل)';
+            }
+            btn.disabled = false;
+        }
+
         async function handleSignup() {
-            const category = document.getElementById('category').value;
+            const category    = document.getElementById('category').value;
             const providerName = document.getElementById('providerName').value.trim();
-            const city  = document.getElementById('city').value.trim();
+            const governorate = document.getElementById('governorate').value;
+            const area  = document.getElementById('area').value.trim();
             const phone = document.getElementById('phone').value.trim();
-            const email = document.getElementById('email').value.trim();
-            const password = document.getElementById('password').value;
+            const pin   = document.getElementById('pin').value.trim();
             const errEl = document.getElementById('errorMsg');
             const btn = document.getElementById('submitBtn');
             errEl.innerText = '';
 
-            if (!providerName) return errEl.innerText = '⚠️ أدخل اسم النشاط/العمل.';
-            if (!email) return errEl.innerText = '⚠️ أدخل بريدك الإلكتروني.';
-            if (password.length < 6) return errEl.innerText = '⚠️ كلمة المرور 6 أحرف على الأقل.';
+            if (!providerName) return errEl.innerText = '⚠️ أدخل اسم نشاطك.';
+            if (!area) return errEl.innerText = '⚠️ أدخل اسم المنطقة.';
+            if (!selectedLocation)
+                return errEl.innerText = '⚠️ حدد موقعك على الخريطة (اضغط "استخدم موقعي الحالي" أول).';
+            if (!phone || phone.replace(/[^0-9]/g,'').length < 10)
+                return errEl.innerText = '⚠️ اكتب رقم هاتف صحيح.';
+            if (!pin || pin.length < 4) return errEl.innerText = '⚠️ الرمز 4 أرقام على الأقل.';
 
             btn.disabled = true;
             btn.innerText = 'جاري التسجيل...';
 
             try {
-                await signUpProvider(email, password, providerName, category, phone, city);
+                await signUpProvider(providerName, category, phone, governorate, area, selectedLocation, pin);
                 window.location.href = 'provider-dashboard.html';
             } catch (err) {
                 btn.disabled = false;
                 btn.innerText = 'تسجيل النشاط';
-                const map = {
-                    'auth/email-already-in-use': '⚠️ هذا البريد مستخدم أصلًا.',
-                    'auth/invalid-email': '⚠️ صيغة البريد غير صحيحة.',
-                    'auth/weak-password': '⚠️ كلمة المرور ضعيفة.',
-                };
-                errEl.innerText = map[err.code] || ('⚠️ صار خطأ: ' + err.message);
+                errEl.innerText = '⚠️ ' + (err.message || 'صار خطأ، حاول مرة ثانية.');
             }
         }
     </script>
