@@ -128,6 +128,38 @@
                oninput="filterProviders()">
     </div>
 
+    <div style="display:flex;gap:8px;padding:0 16px 12px;max-width:500px;margin:0 auto;">
+        <button id="nearMeBtn" onclick="sortByNearestToMe()"
+                style="flex:1;background:linear-gradient(135deg,#C69C32,#E5C158);color:#000;
+                       border:none;border-radius:10px;padding:11px;font-weight:900;
+                       font-size:0.85rem;cursor:pointer;font-family:inherit;">
+            📍 الأقرب لي
+        </button>
+        <select id="governorateFilter" onchange="renderProviders()"
+                style="flex:1;padding:11px;border-radius:10px;border:none;
+                       background:#1a2b22;color:#fff;font-size:0.85rem;font-family:inherit;">
+            <option value="">كل المحافظات</option>
+            <option value="بغداد">بغداد</option>
+            <option value="البصرة">البصرة</option>
+            <option value="نينوى">نينوى</option>
+            <option value="أربيل">أربيل</option>
+            <option value="النجف">النجف</option>
+            <option value="كربلاء">كربلاء</option>
+            <option value="ذي قار">ذي قار</option>
+            <option value="بابل">بابل</option>
+            <option value="الأنبار">الأنبار</option>
+            <option value="ديالى">ديالى</option>
+            <option value="كركوك">كركوك</option>
+            <option value="واسط">واسط</option>
+            <option value="ميسان">ميسان</option>
+            <option value="صلاح الدين">صلاح الدين</option>
+            <option value="القادسية">القادسية</option>
+            <option value="المثنى">المثنى</option>
+            <option value="دهوك">دهوك</option>
+            <option value="السليمانية">السليمانية</option>
+        </select>
+    </div>
+
     <div class="categories" id="categoriesBar">
         <div class="cat-chip active" data-cat="" onclick="selectCategory('', this)">الكل</div>
         <div class="cat-chip" data-cat="رجالي" onclick="selectCategory('رجالي', this)">💈 رجالي</div>
@@ -188,10 +220,41 @@
 
         function filterProviders() { renderProviders(); }
 
+        // 📍 ترتيب حسب الأقرب فعلياً - يطلب موقع الزبون الحقيقي من المتصفح
+        // ويحسب المسافة بالكيلومتر لكل نشاط عنده موقع مسجّل
+        async function sortByNearestToMe() {
+            const btn = document.getElementById('nearMeBtn');
+            btn.disabled = true;
+            btn.innerText = '⏳ جاري تحديد موقعك...';
+
+            try {
+                const myLoc = await getCustomerCurrentLocation();
+                allProviders.forEach(p => {
+                    p.distanceKm = p.location
+                        ? calculateDistanceKm(myLoc.lat, myLoc.lng, p.location.lat, p.location.lng)
+                        : null;
+                });
+                allProviders.sort((a, b) => {
+                    if (a.distanceKm === null) return 1;
+                    if (b.distanceKm === null) return -1;
+                    return a.distanceKm - b.distanceKm;
+                });
+                btn.innerText = '✅ مرتّب حسب الأقرب';
+                renderProviders();
+            } catch (err) {
+                console.warn(err);
+                btn.innerText = '📍 الأقرب لي';
+                alert('⚠️ تعذّر الوصول لموقعك - تأكد وافقت على إذن الموقع بالمتصفح.');
+            }
+            btn.disabled = false;
+        }
+
         function renderProviders() {
             const search = document.getElementById('searchInput').value.trim().toLowerCase();
+            const governorate = document.getElementById('governorateFilter').value;
             let list = allProviders;
             if (activeCategory) list = list.filter(p => p.category === activeCategory);
+            if (governorate) list = list.filter(p => p.governorate === governorate);
             if (search) list = list.filter(p => (p.name || '').toLowerCase().includes(search));
 
             const container = document.getElementById('providersList');
@@ -200,15 +263,22 @@
                 return;
             }
 
-            container.innerHTML = list.map(p => `
-                <a href="salon.html?id=${p.id}" class="provider-card">
-                    <div class="avatar">${getCategoryIcon(p.category)}</div>
-                    <div class="info">
-                        <h3>${p.name}</h3>
-                        <p>${p.city || ''} ${p.description ? '• ' + p.description.slice(0,30) : ''}</p>
-                    </div>
-                </a>
-            `).join('');
+            container.innerHTML = list.map(p => {
+                const locationLine = [p.governorate, p.area].filter(Boolean).join(' - ');
+                const distanceBadge = (p.distanceKm !== undefined && p.distanceKm !== null)
+                    ? '<span style="color:var(--gold);font-weight:900;"> • 📍 ' +
+                      p.distanceKm.toFixed(1) + ' كم</span>'
+                    : '';
+                return `
+                    <a href="salon.html?id=${p.id}" class="provider-card">
+                        <div class="avatar">${getCategoryIcon(p.category)}</div>
+                        <div class="info">
+                            <h3>${p.name}</h3>
+                            <p>${locationLine}${distanceBadge}</p>
+                        </div>
+                    </a>
+                `;
+            }).join('');
         }
 
         loadProviders();
