@@ -34,55 +34,90 @@ function clearCurrentProviderId() {
 }
 
 // ==========================================
-// 🏪 تسجيل صالون جديد (صاحب العمل)
+// 🏪 تسجيل صالون/نشاط جديد - رقم هاتف + رمز شخصي بدل إيميل
 // ==========================================
-async function signUpProvider(email, password, providerName, category, phone, city) {
-    const cred = await auth.createUserWithEmailAndPassword(email, password);
-    const uid  = cred.user.uid;
+async function signUpProvider(providerName, category, phone, governorate, area, location, pin) {
+    const cleanPhone = String(phone).replace(/[^0-9]/g,'');
+    if (!cleanPhone || cleanPhone.length < 10)
+        throw { message: 'رقم الهاتف غير صحيح' };
+    if (!pin || pin.length < 4)
+        throw { message: 'الرمز 4 أرقام على الأقل' };
+
+    await ensureGuestSignedIn();
+
+    const existing = await db.collection('providers')
+        .where('phone', '==', cleanPhone).limit(1).get();
+    if (!existing.empty)
+        throw { message: 'هذا الرقم مسجّل نشاط أصلاً - سجّل دخولك' };
 
     const providerRef = db.collection('providers').doc();
     await providerRef.set({
-        name:        providerName,
-        category:    category,   // "رجالي" / "نسائي" / "عيادة" ...
-        ownerUid:    uid,
-        phone:       phone || '',
-        city:        city || '',
-        description: '',
-        logoUrl:     '',
-        coverUrl:    '',
-        isActive:    true,
-        createdAt:   Date.now(),
-        plan:        'trial'
+        name:         providerName,
+        category:     category,   // "رجالي" / "نسائي" / "عيادة" ...
+        phone:        cleanPhone,
+        pin,
+        governorate:  governorate || '',
+        area:         area || '',
+        location:     location || null, // 🆕 {lat, lng} - موقع GPS حقيقي
+        description:  '',
+        logoUrl:      '',
+        coverUrl:     '',
+        isActive:     true,
+        createdAt:    Date.now(),
+        plan:         'trial'
     });
 
-    await db.collection('users').doc(uid).set({
-        email,
-        providerId: providerRef.id,
-        role: 'provider',
-        createdAt: Date.now()
-    }, { merge: true });
-
     setCurrentProviderId(providerRef.id);
-    return { uid, providerId: providerRef.id };
+    return { providerId: providerRef.id };
+}
+
+// 📏 حساب المسافة بين نقطتين (كم) - معادلة Haversine
+function calculateDistanceKm(lat1, lng1, lat2, lng2) {
+    const R = 6371; // نصف قطر الأرض بالكيلومتر
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLng/2) * Math.sin(dLng/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+// 📍 جلب موقع الزبون الحالي (طلب صلاحية GPS من المتصفح)
+function getCustomerCurrentLocation() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject(new Error('المتصفح ما يدعم تحديد الموقع'));
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+            err => reject(err),
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    });
 }
 
 // ==========================================
-// 🔑 تسجيل دخول صاحب الصالون
+// 🔑 تسجيل دخول صاحب النشاط
 // ==========================================
-async function logInProvider(email, password) {
-    const cred = await auth.signInWithEmailAndPassword(email, password);
-    const userDoc = await db.collection('users').doc(cred.user.uid).get();
-    if (!userDoc.exists || !userDoc.data().providerId) {
-        throw { code: 'gohajz/no-provider', message: 'هذا الحساب مو مرتبط بأي صالون.' };
-    }
-    const providerId = userDoc.data().providerId;
-    setCurrentProviderId(providerId);
-    return { uid: cred.user.uid, providerId };
+async function logInProvider(phone, pin) {
+    const cleanPhone = String(phone).replace(/[^0-9]/g,'');
+    await ensureGuestSignedIn();
+
+    const snap = await db.collection('providers')
+        .where('phone', '==', cleanPhone).limit(1).get();
+    if (snap.empty) throw { message: 'ماكو نشاط مسجّل بهذا الرقم' };
+
+    const doc = snap.docs[0];
+    if (String(doc.data().pin) !== String(pin)) throw { message: 'الرمز غلط' };
+
+    setCurrentProviderId(doc.id);
+    return { providerId: doc.id };
 }
 
 function logOutProvider() {
     clearCurrentProviderId();
-    return auth.signOut();
 }
 
 // ==========================================
@@ -180,6 +215,16 @@ async function getMyBookings() {
         b.providerName = providerCache[b.providerId]?.name || 'صالون محذوف';
     }
     return bookings;
+}
+
+// 🔑 تغيير الرمز الشخصي للزبون
+async function updateCustomerPin(newPin) {
+    const phone = getCurrentCustomerPhone();
+    if (!phone) throw { message: 'لازم تسجّل دخول أول' };
+    if (!newPin || newPin.length < 4) throw { message: 'الرمز 4 أرقام على الأقل' };
+
+    await ensureGuestSignedIn();
+    await db.collection('customers').doc(phone).set({ pin: newPin }, { merge: true });
 }
 
 // ==========================================
