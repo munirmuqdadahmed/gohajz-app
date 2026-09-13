@@ -6,6 +6,8 @@
     <title>GoHajz - حجز موعد</title>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
@@ -117,12 +119,38 @@
             if (!provider) { alert('هذا النشاط غير موجود'); location.href = 'index.html'; return; }
 
             document.getElementById('pageTitle').innerText = provider.name;
+            const locationLine = [provider.governorate, provider.area].filter(Boolean).join(' - ');
             document.getElementById('providerHeader').innerHTML = `
                 <div class="avatar">${getCategoryIcon(provider.category)}</div>
                 <h1>${provider.name}</h1>
-                <p>${provider.city || ''} ${provider.phone ? '• 📞 ' + provider.phone : ''}</p>
+                <p>${locationLine} ${provider.phone ? '• 📞 ' + provider.phone : ''}</p>
                 ${provider.description ? '<p style="margin-top:6px;">' + provider.description + '</p>' : ''}
             `;
+
+            // 🗺️ خريطة الموقع + زر الاتجاهات (لو النشاط حدد موقعه)
+            if (provider.location && provider.location.lat) {
+                const mapSection = document.createElement('div');
+                mapSection.className = 'section';
+                mapSection.innerHTML = `
+                    <div id="salonMap" style="height:180px;border-radius:12px;
+                         overflow:hidden;border:1px solid #24392c;margin-bottom:8px;"></div>
+                    <a href="https://www.google.com/maps/dir/?api=1&destination=${provider.location.lat},${provider.location.lng}"
+                       target="_blank" style="display:block;text-align:center;background:var(--gold);
+                       color:#000;padding:10px;border-radius:8px;text-decoration:none;font-weight:900;">
+                       🧭 خذني للموقع (اتجاهات)
+                    </a>
+                `;
+                document.getElementById('providerHeader').after(mapSection);
+
+                setTimeout(() => {
+                    const map = L.map('salonMap', { zoomControl: false, dragging: false, scrollWheelZoom: false })
+                        .setView([provider.location.lat, provider.location.lng], 15);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '© OpenStreetMap'
+                    }).addTo(map);
+                    L.marker([provider.location.lat, provider.location.lng]).addTo(map);
+                }, 100);
+            }
 
             const snap = await providerServicesCollection(providerId)
                 .where('isActive', '==', true).get();
