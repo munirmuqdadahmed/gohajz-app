@@ -44,32 +44,65 @@
             display: inline-block; margin-top: 14px; background: var(--gold); color: #000;
             padding: 10px 22px; border-radius: 8px; text-decoration: none; font-weight: 900;
         }
+        .tabs { display: flex; gap: 6px; padding: 12px 16px 0; max-width: 500px; margin: 0 auto; }
+        .tab-btn {
+            flex: 1; padding: 10px; background: #142a1f; border: 1px solid #24392c;
+            color: #ccc; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 0.85rem;
+        }
+        .tab-btn.active { background: var(--gold); color: #000; font-weight: 900; border-color: var(--gold); }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+        .info-card {
+            background: #142a1f; border: 1px solid #24392c; border-radius: 12px;
+            padding: 14px; margin-bottom: 10px;
+        }
+        .info-row { display: flex; justify-content: space-between; padding: 7px 0;
+                    border-bottom: 1px solid #1e3428; font-size: 0.85rem; }
+        .info-row:last-child { border-bottom: none; }
+        .info-row .lbl { color: #999; }
+        .info-row .val { color: #fff; font-weight: bold; }
+        input.pin-input {
+            width: 100%; padding: 10px; background: #0a1f16; border: 1px solid #24392c;
+            border-radius: 8px; color: #fff; font-size: 0.9rem; font-family: inherit;
+            margin-bottom: 8px; direction: ltr; text-align: center; letter-spacing: 3px;
+        }
     </style>
 </head>
 <body>
     <div class="top-bar">
         <div style="display:flex;align-items:center;gap:10px;">
             <a href="index.html"><i class="fa-solid fa-arrow-right"></i></a>
-            <h2>📅 حجوزاتي</h2>
+            <h2>👤 حسابي</h2>
         </div>
         <a href="#" class="logout-link" onclick="handleLogout()">خروج</a>
     </div>
 
-    <div id="content" class="section">
-        <p class="empty-state">⏳ جاري التحميل...</p>
+    <div class="tabs" id="accountTabs" style="display:none;">
+        <button class="tab-btn active" onclick="switchAccountTab('info', this)">👤 معلوماتي</button>
+        <button class="tab-btn" onclick="switchAccountTab('bookings', this)">📅 حجوزاتي</button>
     </div>
+
+    <div id="loginPromptBox" class="section"></div>
+
+    <div id="tab-info" class="section tab-pane active"></div>
+    <div id="tab-bookings" class="section tab-pane"></div>
 
     <script src="gohajz-core.js"></script>
     <script>
-        (async function initMyBookings() {
-            const content = document.getElementById('content');
+        function switchAccountTab(name, btn) {
+            document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + name).classList.add('active');
+            btn.classList.add('active');
+        }
 
+        (async function initAccountPage() {
             if (!isCustomerLoggedIn()) {
-                content.innerHTML = `
+                document.getElementById('loginPromptBox').innerHTML = `
                     <div class="login-prompt">
                         <div style="font-size:2rem;">🔐</div>
                         <p style="color:#ccc;margin-top:10px;">
-                            سجّل دخولك حتى تشوف كل حجوزاتك بمكان وحد
+                            سجّل دخولك حتى تشوف حسابك وحجوزاتك
                         </p>
                         <a href="customer-login.html">تسجيل الدخول</a>
                     </div>
@@ -77,17 +110,90 @@
                 return;
             }
 
+            document.getElementById('accountTabs').style.display = 'flex';
+            await ensureGuestSignedIn();
+            loadMyInfo();
+            loadMyBookingsTab();
+        })();
+
+        async function loadMyInfo() {
+            const box = document.getElementById('tab-info');
             try {
-                await ensureGuestSignedIn();
+                const info = await getCurrentCustomerInfo();
+                if (!info) {
+                    box.innerHTML = '<p class="empty-state">⚠️ تعذّر إيجاد بياناتك.</p>';
+                    return;
+                }
+
+                box.innerHTML = `
+                    <div class="info-card">
+                        <div class="info-row"><span class="lbl">الاسم</span><span class="val">${info.name}</span></div>
+                        <div class="info-row"><span class="lbl">رقم الهاتف</span><span class="val" style="direction:ltr;">${info.phone}</span></div>
+                        <div class="info-row"><span class="lbl">الجنس</span><span class="val">${info.gender || '-'}</span></div>
+                        <div class="info-row"><span class="lbl">تاريخ الميلاد</span><span class="val">${info.birthdate || '-'}</span></div>
+                        <div class="info-row"><span class="lbl">المحافظة</span><span class="val">${info.governorate || '-'}</span></div>
+                    </div>
+
+                    <div class="info-card">
+                        <h4 style="color:var(--gold-light);margin-bottom:10px;font-size:0.9rem;">
+                            🔑 تغيير الرمز الشخصي
+                        </h4>
+                        <input type="password" id="newPin1" class="pin-input" inputmode="numeric"
+                               placeholder="الرمز الجديد (4 أرقام على الأقل)">
+                        <input type="password" id="newPin2" class="pin-input" inputmode="numeric"
+                               placeholder="أعد كتابة الرمز الجديد">
+                        <button onclick="handleChangePin()"
+                                style="width:100%;padding:10px;background:var(--gold);color:#000;
+                                       border:none;border-radius:8px;font-weight:900;cursor:pointer;
+                                       font-family:inherit;">
+                            حفظ الرمز الجديد
+                        </button>
+                        <p id="pinMsg" style="font-size:0.78rem;margin-top:8px;text-align:center;"></p>
+                    </div>
+                `;
+            } catch (err) {
+                console.error(err);
+                box.innerHTML = '<p class="empty-state">⚠️ تعذّر تحميل بياناتك.</p>';
+            }
+        }
+
+        async function handleChangePin() {
+            const pin1 = document.getElementById('newPin1').value.trim();
+            const pin2 = document.getElementById('newPin2').value.trim();
+            const msg  = document.getElementById('pinMsg');
+
+            if (!pin1 || pin1.length < 4) {
+                msg.style.color = '#ef4444'; msg.innerText = '⚠️ الرمز 4 أرقام على الأقل.'; return;
+            }
+            if (pin1 !== pin2) {
+                msg.style.color = '#ef4444'; msg.innerText = '⚠️ الرمزين ما يتطابقون.'; return;
+            }
+
+            try {
+                await updateCustomerPin(pin1);
+                msg.style.color = '#10b981';
+                msg.innerText = '✅ تم تغيير الرمز بنجاح!';
+                document.getElementById('newPin1').value = '';
+                document.getElementById('newPin2').value = '';
+            } catch (err) {
+                msg.style.color = '#ef4444';
+                msg.innerText = '⚠️ ' + (err.message || 'صار خطأ.');
+            }
+        }
+
+        async function loadMyBookingsTab() {
+            const box = document.getElementById('tab-bookings');
+            box.innerHTML = '<p class="empty-state">⏳ جاري التحميل...</p>';
+            try {
                 const bookings = await getMyBookings();
                 if (bookings.length === 0) {
-                    content.innerHTML = '<p class="empty-state">😕 ماكو حجوزات لك بعد</p>';
+                    box.innerHTML = '<p class="empty-state">😕 ماكو حجوزات لك بعد</p>';
                     return;
                 }
 
                 const statusLabel = { pending: 'بانتظار التأكيد', confirmed: 'مؤكد ✅', cancelled: 'ملغي ❌' };
 
-                content.innerHTML = bookings.map(b => `
+                box.innerHTML = bookings.map(b => `
                     <div class="booking-card">
                         <div class="top-row">
                             <span class="provider-name">${b.providerName}</span>
@@ -102,9 +208,9 @@
                 `).join('');
             } catch (err) {
                 console.error(err);
-                content.innerHTML = '<p class="empty-state">⚠️ تعذّر تحميل حجوزاتك. حاول تحدّث الصفحة.</p>';
+                box.innerHTML = '<p class="empty-state">⚠️ تعذّر تحميل حجوزاتك. حاول تحدّث الصفحة.</p>';
             }
-        })();
+        }
 
         function handleLogout() {
             logOutCustomer();
